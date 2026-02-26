@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}Fitness Goals - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1 class="page-title">🎯 Fitness Goals</h1>
+        <p class="page-subtitle">Set targets and crush them!</p>
+    </div>
+    <a href="{{ url_for('add_goal') }}" class="btn btn-primary-custom">+ New Goal</a>
+</div>
+
+<!-- Goals Summary -->
+<div class="goals-summary">
+    <div class="goal-summary-card">
+        <div class="summary-value">{{ stats.total_goals }}</div>
+        <div class="summary-label">Total Goals</div>
+    </div>
+    <div class="goal-summary-card achieved">
+        <div class="summary-value">{{ stats.achieved }}</div>
+        <div class="summary-label">Achieved 🎉</div>
+    </div>
+    <div class="goal-summary-card in-progress">
+        <div class="summary-value">{{ stats.in_progress }}</div>
+        <div class="summary-label">In Progress</div>
+    </div>
+</div>
+
+<!-- Goals List -->
+<div class="goals-container">
+    {% if goals %}
+        {% for goal in goals %}
+        <div class="goal-card {% if goal.status == 'Achieved' %}achieved{% endif %}">
+            <div class="goal-header">
+                <div class="goal-type-badge">
+                    {% if goal.goal_type == 'Total Workouts' %}🏋️
+                    {% elif goal.goal_type == 'Total Calories' %}🔥
+                    {% elif goal.goal_type == 'Total Minutes' %}⏱️
+                    {% else %}🎯{% endif %}
+                    {{ goal.goal_type }}
+                </div>
+                <span class="goal-status {% if goal.status == 'Achieved' %}achieved{% else %}in-progress{% endif %}">
+                    {% if goal.status == 'Achieved' %}✅ Achieved{% else %}🔄 In Progress{% endif %}
+                </span>
+            </div>
+            
+            <h3 class="goal-title">{{ goal.goal_title }}</h3>
+            
+            <div class="goal-progress">
+                <div class="progress-bar">
+                    {% set percentage = ((goal.current_value / goal.target_value) * 100) | round(0) | int %}
+                    {% if percentage > 100 %}{% set percentage = 100 %}{% endif %}
+                    <div class="progress-fill" data-width="{{ percentage }}"></div>
+                </div>
+                <div class="progress-text">
+                    <span>{{ goal.current_value }} / {{ goal.target_value }}</span>
+                    <span>{{ percentage }}%</span>
+                </div>
+            </div>
+            
+            <div class="goal-footer">
+                <div class="goal-deadline">
+                    <span class="deadline-icon">📅</span>
+                    Target: {{ goal.target_date }}
+                </div>
+                <a href="{{ url_for('delete_goal', goal_id=goal.id) }}" 
+                   class="goal-delete-btn"
+                   onclick="return confirm('Delete this goal?')">
+                    🗑️
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🎯</div>
+            <h3>No Goals Yet</h3>
+            <p>Set your first fitness goal and start working towards it!</p>
+            <a href="{{ url_for('add_goal') }}" class="btn btn-primary-custom">Create Your First Goal</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.querySelectorAll('.progress-fill[data-width]').forEach(function(el) {
+        el.style.width = el.dataset.width + '%';
+    });
+</script>
+{% endblock %}

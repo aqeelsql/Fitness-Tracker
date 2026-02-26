@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}Analytics - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📊 Analytics Dashboard</h1>
+    <p class="page-subtitle">Insights into your fitness progress</p>
+</div>
+
+<!-- Overview Stats -->
+<div class="analytics-stats">
+    <div class="analytics-stat-card">
+        <div class="analytics-stat-icon">🏋️</div>
+        <div class="analytics-stat-content">
+            <div class="analytics-stat-value">{{ stats.total_workouts }}</div>
+            <div class="analytics-stat-label">Total Workouts</div>
+        </div>
+    </div>
+    
+    <div class="analytics-stat-card">
+        <div class="analytics-stat-icon">🔥</div>
+        <div class="analytics-stat-content">
+            <div class="analytics-stat-value">{{ "{:,}".format(stats.total_calories | int) }}</div>
+            <div class="analytics-stat-label">Calories Burned</div>
+        </div>
+    </div>
+    
+    <div class="analytics-stat-card">
+        <div class="analytics-stat-icon">⏱️</div>
+        <div class="analytics-stat-content">
+            <div class="analytics-stat-value">{{ stats.total_minutes }}</div>
+            <div class="analytics-stat-label">Total Minutes</div>
+        </div>
+    </div>
+    
+    <div class="analytics-stat-card">
+        <div class="analytics-stat-icon">📈</div>
+        <div class="analytics-stat-content">
+            <div class="analytics-stat-value">{{ stats.avg_duration | round(0) | int }}</div>
+            <div class="analytics-stat-label">Avg. Duration (mins)</div>
+        </div>
+    </div>
+    
+    <div class="analytics-stat-card">
+        <div class="analytics-stat-icon">⚡</div>
+        <div class="analytics-stat-content">
+            <div class="analytics-stat-value">{{ stats.avg_calories | round(0) | int }}</div>
+            <div class="analytics-stat-label">Avg. Calories/Workout</div>
+        </div>
+    </div>
+    
+    {% if best_day %}
+    <div class="analytics-stat-card highlight">
+        <div class="analytics-stat-icon">🏆</div>
+        <div class="analytics-stat-content">
+            <div class="analytics-stat-value">{{ best_day.total_calories }}</div>
+            <div class="analytics-stat-label">Best Day ({{ best_day.workout_date }})</div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="analytics-grid">
+    <!-- Workouts by Type -->
+    <div class="analytics-card">
+        <h3 class="analytics-card-title">Workouts by Type</h3>
+        <div class="chart-container">
+            <canvas id="typeChart"></canvas>
+        </div>
+        <div class="type-breakdown">
+            {% for wt in workouts_by_type %}
+            <div class="type-item">
+                <span class="type-name">{{ wt.workout_type }}</span>
+                <span class="type-count">{{ wt.count }} workouts</span>
+                <span class="type-stats">{{ wt.total_duration }} mins • {{ wt.total_calories }} cal</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Workouts by Status -->
+    <div class="analytics-card">
+        <h3 class="analytics-card-title">Status Breakdown</h3>
+        <div class="chart-container">
+            <canvas id="statusChart"></canvas>
+        </div>
+        <div class="status-breakdown">
+            {% for ws in workouts_by_status %}
+            <div class="status-item">
+                <span class="status-badge status-{{ ws.status | lower | replace(' ', '-') }}">{{ ws.status }}</span>
+                <span class="status-count">{{ ws.count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Weekly Progress -->
+    <div class="analytics-card full-width">
+        <h3 class="analytics-card-title">Last 7 Days Activity</h3>
+        <div class="chart-container large">
+            <canvas id="weeklyChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Motivational Section -->
+<div class="motivation-section">
+    <div class="motivation-content">
+        <h3>Keep Going! 💪</h3>
+        <p>You've burned <strong>{{ "{:,}".format(stats.total_calories | int) }}</strong> calories and worked out for <strong>{{ (stats.total_minutes / 60) | round(1) }}</strong> hours total. That's amazing progress!</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Data passed from server (JSON format) -->
+<script id="chart-data" type="application/json">
+{
+    "typeLabels": {{ workouts_by_type | map(attribute='workout_type') | list | tojson }},
+    "typeCounts": {{ workouts_by_type | map(attribute='count') | list | tojson }},
+    "statusLabels": {{ workouts_by_status | map(attribute='status') | list | tojson }},
+    "statusCounts": {{ workouts_by_status | map(attribute='count') | list | tojson }},
+    "weeklyLabels": {{ weekly_data | map(attribute='workout_date') | list | tojson }},
+    "weeklyCalories": {{ weekly_data | map(attribute='calories') | list | tojson }}
+}
+</script>
+<script src="{{ url_for('static', filename='analytics.js') }}"></script>
+{% endblock %}

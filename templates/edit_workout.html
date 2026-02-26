@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Workout - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="edit-container">
+    <div class="edit-header">
+        <h2>Edit Workout</h2>
+        <p class="edit-subtitle">Update workout details and track progress.</p>
+    </div>
+    
+    <form method="POST" class="edit-form">
+        <div class="form-group">
+            <label for="workout_title" class="form-label">Workout Title</label>
+            <input type="text" 
+                   class="form-control fitness-input" 
+                   id="workout_title" 
+                   name="workout_title" 
+                   value="{{ workout.workout_title }}"
+                   required>
+        </div>
+        
+        <div class="form-group">
+            <label for="workout_type" class="form-label">Workout Type</label>
+            <select class="form-select fitness-input" id="workout_type" name="workout_type" required>
+                <option value="Cardio" {% if workout.workout_type == 'Cardio' %}selected{% endif %}>Cardio</option>
+                <option value="Strength" {% if workout.workout_type == 'Strength' %}selected{% endif %}>Strength</option>
+                <option value="Yoga" {% if workout.workout_type == 'Yoga' %}selected{% endif %}>Yoga</option>
+                <option value="Pilates" {% if workout.workout_type == 'Pilates' %}selected{% endif %}>Pilates</option>
+                <option value="HIIT" {% if workout.workout_type == 'HIIT' %}selected{% endif %}>HIIT</option>
+                <option value="Swimming" {% if workout.workout_type == 'Swimming' %}selected{% endif %}>Swimming</option>
+                <option value="Cycling" {% if workout.workout_type == 'Cycling' %}selected{% endif %}>Cycling</option>
+            </select>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group half">
+                <label for="duration" class="form-label">Duration (mins)</label>
+                <input type="number" 
+                       class="form-control fitness-input" 
+                       id="duration" 
+                       name="duration" 
+                       value="{{ workout.duration }}"
+                       min="1"
+                       required>
+            </div>
+            
+            <div class="form-group half">
+                <label for="calories_burned" class="form-label">Calories Burned</label>
+                <input type="number" 
+                       class="form-control fitness-input" 
+                       id="calories_burned" 
+                       name="calories_burned" 
+                       value="{{ workout.calories_burned }}"
+                       min="0"
+                       required>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="workout_date" class="form-label">Date</label>
+            <input type="date" 
+                   class="form-control fitness-input" 
+                   id="workout_date" 
+                   name="workout_date" 
+                   value="{{ workout.workout_date }}"
+                   required>
+        </div>
+        
+        <div class="form-group">
+            <label for="status" class="form-label">Status</label>
+            <select class="form-select fitness-input" id="status" name="status" required>
+                <option value="Pending Review" {% if workout.status == 'Pending Review' %}selected{% endif %}>Pending Review</option>
+                <option value="Completed" {% if workout.status == 'Completed' %}selected{% endif %}>Completed</option>
+                <option value="Ongoing" {% if workout.status == 'Ongoing' %}selected{% endif %}>Ongoing</option>
+                <option value="Needs Improvement" {% if workout.status == 'Needs Improvement' %}selected{% endif %}>Needs Improvement</option>
+            </select>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-save">
+                <span>Save Changes</span>
+            </button>
+            <a href="{{ url_for('fitness_dashboard') }}" class="btn btn-cancel">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

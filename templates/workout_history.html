@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+
+{% block title %}Workout History - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📋 Workout History</h1>
+    <p class="page-subtitle">Track your fitness journey over time</p>
+</div>
+
+<!-- Filters -->
+<div class="filters-container">
+    <form method="GET" class="filters-form">
+        <div class="filter-group">
+            <label class="filter-label">Workout Type</label>
+            <select name="type" class="filter-input">
+                <option value="">All Types</option>
+                {% for wt in workout_types %}
+                <option value="{{ wt.workout_type }}" {% if filters.type == wt.workout_type %}selected{% endif %}>{{ wt.workout_type }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label class="filter-label">Status</label>
+            <select name="status" class="filter-input">
+                <option value="">All Status</option>
+                <option value="Pending Review" {% if filters.status == 'Pending Review' %}selected{% endif %}>Pending Review</option>
+                <option value="Completed" {% if filters.status == 'Completed' %}selected{% endif %}>Completed</option>
+                <option value="Ongoing" {% if filters.status == 'Ongoing' %}selected{% endif %}>Ongoing</option>
+                <option value="Needs Improvement" {% if filters.status == 'Needs Improvement' %}selected{% endif %}>Needs Improvement</option>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label class="filter-label">From Date</label>
+            <input type="date" name="from" class="filter-input" value="{{ filters.from }}">
+        </div>
+        
+        <div class="filter-group">
+            <label class="filter-label">To Date</label>
+            <input type="date" name="to" class="filter-input" value="{{ filters.to }}">
+        </div>
+        
+        <button type="submit" class="btn filter-btn">Apply Filters</button>
+        <a href="{{ url_for('workout_history') }}" class="btn filter-clear-btn">Clear</a>
+    </form>
+</div>
+
+<!-- Results Count -->
+<div class="results-info">
+    <p>Showing <strong>{{ workouts|length }}</strong> workout(s)</p>
+</div>
+
+<!-- Workout Cards -->
+<div class="history-grid">
+    {% if workouts %}
+        {% for workout in workouts %}
+        <div class="history-card">
+            <div class="history-card-header">
+                <div class="workout-type-badge type-{{ workout.workout_type | lower }}">
+                    {% if workout.workout_type == 'Cardio' %}🏃
+                    {% elif workout.workout_type == 'Strength' %}💪
+                    {% elif workout.workout_type == 'Yoga' %}🧘
+                    {% elif workout.workout_type == 'HIIT' %}⚡
+                    {% elif workout.workout_type == 'Swimming' %}🏊
+                    {% elif workout.workout_type == 'Cycling' %}🚴
+                    {% elif workout.workout_type == 'Running' %}🏃
+                    {% else %}🏋️{% endif %}
+                    {{ workout.workout_type }}
+                </div>
+                <span class="status-badge status-{{ workout.status | lower | replace(' ', '-') }}">
+                    {{ workout.status }}
+                </span>
+            </div>
+            
+            <h3 class="history-card-title">{{ workout.workout_title }}</h3>
+            
+            <div class="history-card-stats">
+                <div class="stat-item">
+                    <span class="stat-icon">⏱️</span>
+                    <span class="stat-value">{{ workout.duration }} mins</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-icon">🔥</span>
+                    <span class="stat-value">{{ workout.calories_burned }} cal</span>
+                </div>
+            </div>
+            
+            <div class="history-card-date">
+                <span class="date-icon">📅</span>
+                {{ workout.workout_date }}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="empty-state full-width">
+            <div class="empty-icon">📋</div>
+            <h3>No Workouts Found</h3>
+            <p>{% if filters.type or filters.status or filters.from or filters.to %}No workouts match your filters. Try adjusting your criteria.{% else %}Start logging workouts to see your history here!{% endif %}</p>
+            <a href="{{ url_for('front_stage') }}" class="btn btn-primary-custom">Log a Workout</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

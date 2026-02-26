@@ -1,0 +1,169 @@
+{% extends 'base.html' %}
+
+{% block title %}Fitness Tracker - Log Your Workout{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="fitness-logo">
+        <h1 class="main-title">FITNESS TRACKER</h1>
+        <p class="tagline">Track Your Progress. Achieve Your Goals.</p>
+    </div>
+</div>
+
+<!-- Quick Stats Cards -->
+<div class="stats-overview">
+    <div class="stat-card">
+        <div class="stat-icon">🏋️</div>
+        <div class="stat-value">{{ stats.total_workouts }}</div>
+        <div class="stat-label">Total Workouts</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-value">{{ "{:,}".format(stats.total_calories) }}</div>
+        <div class="stat-label">Calories Burned</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-value">{{ stats.total_minutes }}</div>
+        <div class="stat-label">Total Minutes</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">⚡</div>
+        <div class="stat-value">{{ (stats.total_minutes / 60) | round(1) }}</div>
+        <div class="stat-label">Hours Active</div>
+    </div>
+</div>
+
+<div class="page-grid">
+    <!-- Log Workout Form -->
+    <div class="submission-container">
+        <div class="form-header">
+            <h2>Log Your Workout</h2>
+            <p class="form-subtitle">Every workout counts. Keep pushing forward!</p>
+        </div>
+        
+        <form method="POST" class="workout-form">
+            <div class="form-group">
+                <label for="workout_title" class="form-label">Workout Title</label>
+                <input type="text" 
+                       class="form-control fitness-input" 
+                       id="workout_title" 
+                       name="workout_title" 
+                       placeholder="e.g., Morning Jog"
+                       required>
+            </div>
+            
+            <div class="form-group">
+                <label for="workout_type" class="form-label">Workout Type</label>
+                <select class="form-select fitness-input" id="workout_type" name="workout_type" required>
+                    <option value="" disabled selected>Select workout type...</option>
+                    <option value="Cardio">Cardio</option>
+                    <option value="Strength">Strength</option>
+                    <option value="Yoga">Yoga</option>
+                    <option value="Pilates">Pilates</option>
+                    <option value="HIIT">HIIT</option>
+                    <option value="Swimming">Swimming</option>
+                    <option value="Cycling">Cycling</option>
+                    <option value="Running">Running</option>
+                    <option value="Walking">Walking</option>
+                </select>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group half">
+                    <label for="duration" class="form-label">Duration (mins)</label>
+                    <input type="number" 
+                           class="form-control fitness-input" 
+                           id="duration" 
+                           name="duration" 
+                           placeholder="30"
+                           min="1"
+                           required>
+                </div>
+                
+                <div class="form-group half">
+                    <label for="calories_burned" class="form-label">Calories Burned</label>
+                    <input type="number" 
+                           class="form-control fitness-input" 
+                           id="calories_burned" 
+                           name="calories_burned" 
+                           placeholder="300"
+                           min="0"
+                           required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="workout_date" class="form-label">Date</label>
+                <input type="date" 
+                       class="form-control fitness-input" 
+                       id="workout_date" 
+                       name="workout_date" 
+                       required>
+            </div>
+            
+            <div class="form-group">
+                <label for="notes" class="form-label">Notes (Optional)</label>
+                <textarea class="form-control fitness-input" 
+                          id="notes" 
+                          name="notes" 
+                          rows="2"
+                          placeholder="How did you feel? Any achievements?"></textarea>
+            </div>
+            
+            <button type="submit" class="btn btn-submit">
+                <span class="btn-text">Track My Fitness!</span>
+                <span class="btn-icon">💪</span>
+            </button>
+        </form>
+    </div>
+    
+    <!-- Recent Workouts Sidebar -->
+    <div class="recent-workouts-card">
+        <h3 class="card-title">Recent Activity</h3>
+        {% if stats.recent_workouts %}
+            <div class="recent-list">
+                {% for workout in stats.recent_workouts %}
+                <div class="recent-item">
+                    <div class="recent-icon">
+                        {% if workout.workout_type == 'Cardio' %}🏃
+                        {% elif workout.workout_type == 'Strength' %}💪
+                        {% elif workout.workout_type == 'Yoga' %}🧘
+                        {% elif workout.workout_type == 'HIIT' %}⚡
+                        {% elif workout.workout_type == 'Swimming' %}🏊
+                        {% elif workout.workout_type == 'Cycling' %}🚴
+                        {% else %}🏋️{% endif %}
+                    </div>
+                    <div class="recent-details">
+                        <div class="recent-title">{{ workout.workout_title }}</div>
+                        <div class="recent-meta">{{ workout.duration }} mins • {{ workout.calories_burned }} cal</div>
+                    </div>
+                    <div class="recent-date">{{ workout.workout_date }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            <a href="{{ url_for('workout_history') }}" class="view-all-link">View All History →</a>
+        {% else %}
+            <div class="empty-recent">
+                <p>No workouts logged yet. Start your fitness journey today!</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Links -->
+<div class="quick-links">
+    <a href="{{ url_for('analytics') }}" class="quick-link-card">
+        <span class="ql-icon">📊</span>
+        <span class="ql-text">View Analytics</span>
+    </a>
+    <a href="{{ url_for('goals') }}" class="quick-link-card">
+        <span class="ql-icon">🎯</span>
+        <span class="ql-text">Set Goals</span>
+    </a>
+    <a href="{{ url_for('workout_history') }}" class="quick-link-card">
+        <span class="ql-icon">📋</span>
+        <span class="ql-text">Workout History</span>
+    </a>
+</div>
+{% endblock %}

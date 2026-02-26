@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}Add Goal - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="edit-container">
+    <div class="edit-header">
+        <h2>🎯 Set a New Goal</h2>
+        <p class="edit-subtitle">Define your target and let's crush it together!</p>
+    </div>
+    
+    <form method="POST" class="edit-form">
+        <div class="form-group">
+            <label for="goal_title" class="form-label">Goal Title</label>
+            <input type="text" 
+                   class="form-control fitness-input" 
+                   id="goal_title" 
+                   name="goal_title" 
+                   placeholder="e.g., Burn 10,000 calories this month"
+                   required>
+        </div>
+        
+        <div class="form-group">
+            <label for="goal_type" class="form-label">Goal Type</label>
+            <select class="form-select fitness-input" id="goal_type" name="goal_type" required>
+                <option value="" disabled selected>Select goal type...</option>
+                <option value="Total Workouts">Total Workouts (count)</option>
+                <option value="Total Calories">Total Calories Burned</option>
+                <option value="Total Minutes">Total Minutes Exercised</option>
+                <option value="Custom">Custom Goal</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="target_value" class="form-label">Target Value</label>
+            <input type="number" 
+                   class="form-control fitness-input" 
+                   id="target_value" 
+                   name="target_value" 
+                   placeholder="e.g., 10000"
+                   min="1"
+                   required>
+            <small class="form-hint">Enter the number you want to reach (workouts, calories, or minutes)</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="target_date" class="form-label">Target Date</label>
+            <input type="date" 
+                   class="form-control fitness-input" 
+                   id="target_date" 
+                   name="target_date" 
+                   required>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-save">
+                <span>Create Goal</span>
+            </button>
+            <a href="{{ url_for('goals') }}" class="btn btn-cancel">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<!-- Goal Suggestions -->
+<div class="suggestions-container">
+    <h3 class="suggestions-title">💡 Goal Ideas</h3>
+    <div class="suggestions-grid">
+        <div class="suggestion-card">
+            <span class="suggestion-icon">🏃</span>
+            <span class="suggestion-text">Complete 30 workouts this month</span>
+        </div>
+        <div class="suggestion-card">
+            <span class="suggestion-icon">🔥</span>
+            <span class="suggestion-text">Burn 15,000 calories</span>
+        </div>
+        <div class="suggestion-card">
+            <span class="suggestion-icon">⏱️</span>
+            <span class="suggestion-text">Exercise for 600 minutes</span>
+        </div>
+        <div class="suggestion-card">
+            <span class="suggestion-icon">💪</span>
+            <span class="suggestion-text">10 strength training sessions</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

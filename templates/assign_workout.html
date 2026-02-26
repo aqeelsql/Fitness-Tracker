@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Assign Workout Plan - Fitness Tracker{% endblock %}
+
+{% block content %}
+<div class="edit-container">
+    <div class="edit-header">
+        <h2>Assign New Workout Plan</h2>
+        <p class="edit-subtitle">Create a new workout plan for users.</p>
+    </div>
+    
+    <form method="POST" class="edit-form">
+        <div class="form-group">
+            <label for="workout_title" class="form-label">Workout Title</label>
+            <input type="text" 
+                   class="form-control fitness-input" 
+                   id="workout_title" 
+                   name="workout_title" 
+                   placeholder="e.g., Evening Yoga"
+                   required>
+        </div>
+        
+        <div class="form-group">
+            <label for="workout_type" class="form-label">Workout Type</label>
+            <select class="form-select fitness-input" id="workout_type" name="workout_type" required>
+                <option value="" disabled selected>Select workout type...</option>
+                <option value="Cardio">Cardio</option>
+                <option value="Strength">Strength</option>
+                <option value="Yoga">Yoga</option>
+                <option value="Pilates">Pilates</option>
+                <option value="HIIT">HIIT</option>
+                <option value="Swimming">Swimming</option>
+                <option value="Cycling">Cycling</option>
+            </select>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group half">
+                <label for="duration" class="form-label">Duration (mins)</label>
+                <input type="number" 
+                       class="form-control fitness-input" 
+                       id="duration" 
+                       name="duration" 
+                       placeholder="30"
+                       min="1"
+                       required>
+            </div>
+            
+            <div class="form-group half">
+                <label for="calories_burned" class="form-label">Calories Burned</label>
+                <input type="number" 
+                       class="form-control fitness-input" 
+                       id="calories_burned" 
+                       name="calories_burned" 
+                       placeholder="300"
+                       min="0"
+                       required>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="workout_date" class="form-label">Date</label>
+            <input type="date" 
+                   class="form-control fitness-input" 
+                   id="workout_date" 
+                   name="workout_date" 
+                   required>
+        </div>
+        
+        <div class="form-group">
+            <label for="status" class="form-label">Status</label>
+            <select class="form-select fitness-input" id="status" name="status" required>
+                <option value="Pending Review" selected>Pending Review</option>
+                <option value="Completed">Completed</option>
+                <option value="Ongoing">Ongoing</option>
+                <option value="Needs Improvement">Needs Improvement</option>
+            </select>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-save">
+                <span>Assign Workout</span>
+            </button>
+            <a href="{{ url_for('fitness_dashboard') }}" class="btn btn-cancel">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
