@@ -6,7 +6,7 @@ pipeline {
             steps {
                 echo 'Cloning GitHub repository...'
                 git branch: 'main',
-                    url: 'https://github.com/aqeelsql/https://github.com/aqeelsql/Fitness-Tracker.git'
+                    url: 'https://github.com/aqeelsql/Fitness-Tracker.git'
             }
         }
 
