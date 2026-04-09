@@ -14,8 +14,8 @@ worker_class = "sync"
 timeout = 120
 
 # Logging
-accesslog = "/var/log/gunicorn/access.log"
-errorlog = "/var/log/gunicorn/error.log"
+accesslog = "-"
+errorlog = "-"
 loglevel = "info"
 
 # Process naming
