@@ -2,21 +2,13 @@ pipeline {
     agent any
 
     stages {
-        stage('Clone Repository') {
-            steps {
-                echo 'Cloning GitHub repository...'
-                git branch: 'main',
-                    url: 'https://github.com/aqeelsql/Fitness-Tracker.git'
-            }
-        }
-
         stage('Build with Docker Compose') {
             steps {
                 echo 'Stopping old containers...'
-                sh 'docker compose down || true'
+                sh 'docker-compose down || true'
 
                 echo 'Starting Flask app...'
-                sh 'docker compose up -d'
+                sh 'docker-compose up -d'
             }
         }
 
@@ -33,6 +25,7 @@ pipeline {
         }
         failure {
             echo 'Something went wrong!'
+            sh 'docker-compose logs || true'
         }
     }
 }
