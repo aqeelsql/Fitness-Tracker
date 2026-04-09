@@ -11,5 +11,5 @@ services:
       - "5001:5000"
     command: >
       sh -c "pip install -r requirements.txt --quiet &&
-             python app.py"
+             python application.py"
     restart: always
