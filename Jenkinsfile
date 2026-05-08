@@ -1,119 +1,76 @@
 pipeline {
     agent any
 
-    environment {
-        APP_REPO = 'https://github.com/aqeelsql/Fitness-Tracker.git'
-        APP_DIR  = '/home/ubuntu/fitness-tracker'
-        APP_URL  = 'http://localhost:5000'
-    }
-
     triggers {
-        githubPush()   // triggered by GitHub Webhook on every push
+        githubPush()   // ← this is what listens for the webhook
     }
 
     stages {
-
-        // ── STAGE 1: Clone / Pull latest code ──────────────────────────
-        stage('Checkout') {
+        stage('Clone') {
             steps {
-                echo '📥 Pulling latest code from GitHub...'
-                git branch: 'main', url: "${APP_REPO}"
+                echo '📥 Cloning GitHub repository...'
+                git url: 'https://github.com/aqeelsql/Fitness-Tracker.git', branch: 'main'
             }
         }
-
-        // ── STAGE 2: Deploy application with Docker Compose ────────────
-        stage('Deploy App') {
+        stage('Build Docker Image') {
             steps {
-                echo '🚀 Starting the Fitness Tracker application...'
-                sh '''
-                    cd ${WORKSPACE}
-                    docker-compose down || true
-                    docker-compose up -d --build
-                    sleep 10   # wait for Flask app to be ready
-                '''
+                echo '🔨 Building Docker image...'
+                sh 'docker build -f Dockerfile.test -t fitness-tracker-test .'
             }
         }
-
-        // ── STAGE 3: Run Selenium Tests inside Docker ──────────────────
         stage('Test') {
             steps {
-                echo '🧪 Running Selenium test cases in Docker container...'
                 sh '''
-                    # Build the test Docker image
-                    docker build -f Dockerfile.test -t fitness-selenium-tests .
-
-                    # Run tests; container shares host network so it can reach localhost:5000
+                    mkdir -p test-results
                     docker run --rm \
-                        --network host \
-                        -e BASE_URL=${APP_URL} \
-                        --name selenium-tests \
-                        fitness-selenium-tests \
-                        python -m pytest test_fitness_tracker.py -v \
-                            --tb=short \
-                            --junit-xml=/tests/results.xml 2>&1 | tee test_output.txt
-
-                    # Copy results out of the container for archiving
-                    docker cp selenium-tests:/tests/results.xml . 2>/dev/null || true
+                        --shm-size=2g \
+                        -v $(pwd)/test-results:/app/test-results \
+                        fitness-tracker-test \
+                        bash -c "
+                            python application.py &
+                            sleep 3
+                            pytest test_fitness_tracker.py \
+                                --html=test-results/report.html \
+                                --self-contained-html \
+                                -v
+                        "
                 '''
             }
-            post {
-                always {
-                    // Archive JUnit XML so Jenkins shows pass/fail per test
-                    junit allowEmptyResults: true, testResults: 'results.xml'
-                    // Archive raw log
-                    archiveArtifacts artifacts: 'test_output.txt', allowEmptyArchive: true
-                }
-            }
         }
-
-        // ── STAGE 4: Stop app (keep deployment down after test) ────────
-        stage('Stop App') {
+        stage('Deploy') {
             steps {
-                echo '🛑 Stopping app containers (deployment stays down per assignment)...'
                 sh '''
-                    cd ${WORKSPACE}
-                    docker-compose down || true
+                    docker stop fitness-tracker-app || true
+                    docker rm fitness-tracker-app || true
+                    docker run -d \
+                        --name fitness-tracker-app \
+                        -p 5000:5000 \
+                        fitness-tracker-test \
+                        flask run --host=0.0.0.0 --port=5000
                 '''
             }
         }
     }
 
-    // ── POST: Email test results to the committer ──────────────────────
     post {
         always {
-            script {
-                def committerEmail = sh(
-                    script: "git log -1 --pretty=format:'%ae'",
-                    returnStdout: true
-                ).trim()
-
-                def buildStatus = currentBuild.currentResult ?: 'UNKNOWN'
-                def subject     = "Fitness Tracker Test Results: ${buildStatus} [Build #${env.BUILD_NUMBER}]"
-
-                def body = """
-Hello,
-
-Jenkins has finished running the automated Selenium test suite for the Fitness Tracker app.
-
-Pipeline  : ${env.JOB_NAME}
-Build #   : ${env.BUILD_NUMBER}
-Status    : ${buildStatus}
-Duration  : ${currentBuild.durationString}
-
-Full logs : ${env.BUILD_URL}console
-Test Report: ${env.BUILD_URL}testReport/
-
----
-This email was sent automatically by the Jenkins CI/CD pipeline.
-"""
-                emailext(
-                    subject: subject,
-                    body: body,
-                    to: committerEmail,
-                    replyTo: committerEmail,
-                    attachLog: true
-                )
-            }
+            emailext(
+                to: 'rajaaqeeltariq@gmail.com',
+                subject: "Fitness Tracker Test Results: ${currentBuild.currentResult} - Build #${env.BUILD_NUMBER}",
+                body: """
+                    <h2>Test Results: ${currentBuild.currentResult}</h2>
+                    <p><b>Job:</b> ${env.JOB_NAME}</p>
+                    <p><b>Build:</b> #${env.BUILD_NUMBER}</p>
+                    <p><b>App URL:</b> <a href="http://YOUR_EC2_IP:5000">http://YOUR_EC2_IP:5000</a></p>
+                    <p><b>Console:</b> <a href="${env.BUILD_URL}console">View Console Output</a></p>
+                """,
+                mimeType: 'text/html',
+                recipientProviders: [
+                    [$class: 'DevelopersRecipientProvider'],
+                    [$class: 'RequesterRecipientProvider']
+                ],
+                attachLog: true
+            )
         }
     }
 }
