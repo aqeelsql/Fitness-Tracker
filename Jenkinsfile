@@ -3,12 +3,15 @@ pipeline {
     stages {
         stage('Clone') {
             steps {
+                echo '📥 Cloning GitHub repository...'
                 git url: 'https://github.com/aqeelsql/Fitness-Tracker.git', branch: 'main'
             }
         }
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t fitness-tracker-test .'
+                echo '🔨 Building Docker image...'
+                sh 'docker build -f Dockerfile.test -t fitness-tracker-test .'
+                //       ^^^^^^^^^^^^^^^^^^^^^ explicitly point to your file
             }
         }
         stage('Test') {
@@ -20,7 +23,7 @@ pipeline {
                         -v $(pwd)/test-results:/app/test-results \
                         fitness-tracker-test \
                         bash -c "
-                            python app.py &
+                            python application.py &
                             sleep 3
                             pytest test_fitness_tracker.py \
                                 --html=test-results/report.html \
