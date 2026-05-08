@@ -5,14 +5,14 @@ services:
     container_name: jenkins_fitness_app
     working_dir: /app
     volumes:
-      - /var/lib/jenkins/.jenkins/workspace/fitness-tracker-pipeline:/app
+      - /var/lib/jenkins/.jenkins/workspace/fitness-tracker-pipeline:/app  # Jenkins workspace mount
     ports:
-      - "0.0.0.0:5000:5000"
+      - "5000:5000"  # Expose port 5000 to host on all IPs, including public IP
     environment:
       - FLASK_APP=application.py
-      - FLASK_RUN_HOST=0.0.0.0
-      - FLASK_ENV=production
+      - FLASK_RUN_HOST=0.0.0.0  # Ensures Flask binds to all interfaces
+      - FLASK_ENV=production     # Run Flask in production mode
     command: >
       sh -c "pip install -r requirements.txt --quiet &&
-             flask run --host=0.0.0.0 --port=5000"
-    restart: always
+             flask run --host=0.0.0.0 --port=5000"  # Run Flask on port 5000, accessible from outside
+    restart: always  # Ensure the container restarts if it stops
