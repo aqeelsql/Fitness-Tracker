@@ -4,12 +4,11 @@ pipeline {
     environment {
         APP_REPO = 'https://github.com/aqeelsql/Fitness-Tracker.git'
         APP_DIR  = '/home/ubuntu/fitness-tracker'
-        // Use the public IP of your EC2 instance as the APP_URL
-        APP_URL  = "http://${env.PUBLIC_IP}:5000"  // Dynamically set the public IP
+        APP_URL  = "http://${env.PUBLIC_IP}:5000"  // Use the public IP for app URL
     }
 
     triggers {
-        githubPush()   // Triggered by GitHub Webhook on every push
+        githubPush()  // Trigger on every GitHub push
     }
 
     stages {
@@ -28,9 +27,9 @@ pipeline {
                 echo '🚀 Starting the Fitness Tracker application...'
                 sh '''
                     cd ${WORKSPACE}
-                    docker-compose down || true
-                    docker-compose up -d --build
-                    sleep 10   # wait for Flask app to be ready
+                    docker-compose down || true   # Ensure any previous containers are stopped
+                    docker-compose up -d --build  # Start the app in detached mode
+                    sleep 10   # Wait for Flask app to be ready
                 '''
             }
         }
@@ -67,16 +66,16 @@ pipeline {
             }
         }
 
-        // ── STAGE 4: Stop app (keep deployment down after test) ────────
-        stage('Stop App') {
-            steps {
-                echo '🛑 Stopping app containers (deployment stays down per assignment)...'
-                sh '''
-                    cd ${WORKSPACE}
-                    docker-compose down || true
-                '''
-            }
-        }
+        // ── REMOVE STAGE 4: Stop App (Leave the app running after the test)
+        // stage('Stop App') {
+        //     steps {
+        //         echo '🛑 Stopping app containers (deployment stays down per assignment)...'
+        //         sh '''
+        //             cd ${WORKSPACE}
+        //             docker-compose down || true
+        //         '''
+        //     }
+        // }
     }
 
     // ── POST: Email test results to the committer ──────────────────────
