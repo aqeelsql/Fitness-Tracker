@@ -2,9 +2,8 @@ pipeline {
     agent any
 
     environment {
-        APP_REPO      = 'https://github.com/aqeelsql/Fitness-Tracker.git'
-        APP_URL       = 'http://localhost:5000'
-        RESULTS_FILE  = 'results.xml'
+        APP_REPO = 'https://github.com/aqeelsql/Fitness-Tracker.git'
+        APP_URL  = 'http://localhost:5000'
     }
 
     triggers {
@@ -13,183 +12,93 @@ pipeline {
 
     stages {
 
-        // ── 1. ENSURE APP IS DOWN BEFORE ANYTHING ─────────────────
-        stage('Shutdown') {
-            steps {
-                echo '🛑 Ensuring application is DOWN before pipeline starts...'
-                sh '''
-                    docker-compose down --remove-orphans || true
-                    echo "All containers stopped. Website is NOT accessible yet."
-                '''
-            }
-        }
-
-        // ── 2. CHECKOUT ────────────────────────────────────────────
         stage('Checkout') {
             steps {
-                echo '📥 Cloning repository...'
+                echo '📥 Pulling latest code from GitHub...'
                 git branch: 'main', url: "${APP_REPO}"
             }
         }
 
-        // ── 3. BUILD DOCKER IMAGES ─────────────────────────────────
-        stage('Build') {
+        stage('Deploy App') {
             steps {
-                echo '🔨 Building Docker images...'
-                sh 'docker-compose build'
+                echo '🚀 Starting the Fitness Tracker application...'
+                sh '''
+                    cd ${WORKSPACE}
+                    docker-compose down || true
+                    docker-compose up -d --build
+                    sleep 10
+                '''
             }
         }
 
-        // ── 4. RUN SELENIUM TESTS (App starts only for testing) ────
-        stage('Selenium Tests') {
+        stage('Test') {
             steps {
-                echo '🚀 Starting app temporarily for testing...'
+                echo '🧪 Running Selenium test cases in Docker container...'
                 sh '''
-                    docker-compose up -d
-                    echo "Waiting for app to initialize..."
-                    sleep 15
-                '''
-
-                echo '🔍 Verifying app is reachable before tests...'
-                sh '''
-                    for i in {1..10}; do
-                        curl -s --fail ${APP_URL} && echo "App is UP - proceeding to tests" && break
-                        echo "Attempt $i: App not ready yet, waiting..."
-                        sleep 5
-                    done
-                '''
-
-                echo '🧪 Running Selenium tests inside Docker container...'
-                sh '''
-                    docker build -f Dockerfile.test -t fitness-tests .
+                    docker build -f Dockerfile.test -t fitness-selenium-tests .
                     docker run --rm \
                         --network host \
-                        -e BASE_URL=${APP_URL} \
-                        -v ${WORKSPACE}:/tests \
-                        fitness-tests \
-                        pytest -v test_fitness_tracker.py \
-                        --junitxml=/tests/results.xml
+                        --name selenium-tests \
+                        fitness-selenium-tests \
+                        python -m pytest test_fitness_tracker.py -v \
+                            --tb=short \
+                            --junit-xml=/tests/results.xml 2>&1 | tee test_output.txt
                 '''
             }
             post {
                 always {
-                    // Collect results regardless of pass/fail
-                    junit allowEmptyResults: true, testResults: "${RESULTS_FILE}"
-                    archiveArtifacts artifacts: "${RESULTS_FILE}", allowEmptyArchive: true
+                    junit allowEmptyResults: true, testResults: 'results.xml'
+                    archiveArtifacts artifacts: 'test_output.txt', allowEmptyArchive: true
                 }
             }
         }
 
-        // ── 5. DEPLOY (Only reached if tests PASSED) ───────────────
-        stage('Deploy') {
+        stage('Stop App') {
             steps {
-                echo '✅ Tests passed! Keeping application UP and RUNNING...'
+                echo '🛑 Stopping app containers...'
                 sh '''
-                    echo "Application is already running from test stage."
-                    echo "Website is now LIVE and accessible."
-                    docker-compose ps
+                    cd ${WORKSPACE}
+                    docker-compose down || true
                 '''
             }
         }
     }
 
-    // ── POST BUILD ACTIONS ──────────────────────────────────────────
     post {
-
-        success {
-            echo '✅ Pipeline succeeded - sending success email...'
+        always {
             script {
-                // Get the email of whoever pushed the commit
-                def pusherEmail = sh(
+                def committerEmail = sh(
                     script: "git log -1 --pretty=format:'%ae'",
                     returnStdout: true
                 ).trim()
 
-                emailext(
-                    to: "${pusherEmail}",
-                    subject: "✅ [Jenkins] Fitness Tracker - Build #${BUILD_NUMBER} PASSED",
-                    body: """
+                def buildStatus = currentBuild.currentResult ?: 'UNKNOWN'
+                def subject = "Fitness Tracker Test Results: ${buildStatus} [Build #${env.BUILD_NUMBER}]"
+                def body = """
 Hello,
 
-Your recent push to the Fitness Tracker repository has been successfully built and tested.
+Jenkins has finished running the automated Selenium test suite.
 
-────────────────────────────────────
- BUILD DETAILS
-────────────────────────────────────
- Job        : ${JOB_NAME}
- Build No.  : #${BUILD_NUMBER}
- Status     : ✅ SUCCESS
- Duration   : ${currentBuild.durationString}
- Triggered  : ${currentBuild.getBuildCauses()[0]?.shortDescription ?: 'GitHub Push'}
+Pipeline  : ${env.JOB_NAME}
+Build #   : ${env.BUILD_NUMBER}
+Status    : ${buildStatus}
+Duration  : ${currentBuild.durationString}
 
-────────────────────────────────────
- DEPLOYMENT
-────────────────────────────────────
- 🌐 Website is now LIVE at: ${APP_URL}
- All 15 Selenium test cases passed successfully.
+Full logs : ${env.BUILD_URL}console
+Test Report: ${env.BUILD_URL}testReport/
 
-────────────────────────────────────
- TEST RESULTS
-────────────────────────────────────
- Please find the attached test results (results.xml) for full details.
-
-Regards,
-Jenkins CI/CD Pipeline
-                    """,
-                    attachmentsPattern: "${RESULTS_FILE}",
-                    mimeType: 'text/plain'
-                )
-            }
-        }
-
-        failure {
-            echo '❌ Pipeline FAILED - shutting down containers and sending failure email...'
-            sh 'docker-compose down --remove-orphans || true'
-
-            script {
-                def pusherEmail = sh(
-                    script: "git log -1 --pretty=format:'%ae'",
-                    returnStdout: true
-                ).trim()
-
+---
+This email was sent automatically by Jenkins CI/CD pipeline.
+"""
                 emailext(
-                    to: "${pusherEmail}",
-                    subject: "❌ [Jenkins] Fitness Tracker - Build #${BUILD_NUMBER} FAILED",
-                    body: """
-Hello,
-
-Your recent push to the Fitness Tracker repository triggered a build that FAILED.
-
-────────────────────────────────────
- BUILD DETAILS
-────────────────────────────────────
- Job        : ${JOB_NAME}
- Build No.  : #${BUILD_NUMBER}
- Status     : ❌ FAILED
- Duration   : ${currentBuild.durationString}
- Triggered  : ${currentBuild.getBuildCauses()[0]?.shortDescription ?: 'GitHub Push'}
-
-────────────────────────────────────
- DEPLOYMENT STATUS
-────────────────────────────────────
- ⛔ Website has been taken DOWN.
- Containers stopped to prevent serving broken code.
-
-────────────────────────────────────
- WHAT TO DO
-────────────────────────────────────
- 1. Check the Jenkins console logs for error details:
-    ${BUILD_URL}console
- 2. Fix the failing test cases or code issues.
- 3. Push again to re-trigger the pipeline.
-
-Regards,
-Jenkins CI/CD Pipeline
-                    """,
-                    attachmentsPattern: "${RESULTS_FILE}",
-                    mimeType: 'text/plain'
+                    subject: subject,
+                    body: body,
+                    to: committerEmail,
+                    replyTo: committerEmail,
+                    attachLog: true
                 )
             }
         }
     }
+}
 }
