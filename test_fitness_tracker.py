@@ -6,7 +6,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 
-BASE_URL = "http://localhost:5000"  # Change to your deployed URL when testing on EC2
+BASE_URL = "http://localhost:5000"
 
 def get_driver():
     options = Options()
@@ -18,7 +18,6 @@ def get_driver():
     driver = webdriver.Chrome(options=options)
     driver.implicitly_wait(5)
     return driver
-
 
 class TestFitnessTrackerHomePage(unittest.TestCase):
 
@@ -37,7 +36,6 @@ class TestFitnessTrackerHomePage(unittest.TestCase):
     def test_02_stats_section_visible(self):
         self.driver.get(BASE_URL)
         body = self.driver.find_element(By.TAG_NAME, "body").text
-        # Stats section should show some numeric data or zeros
         self.assertTrue(len(body) > 0)
 
     # TC-03: Workout form is present on homepage
@@ -49,18 +47,14 @@ class TestFitnessTrackerHomePage(unittest.TestCase):
     # TC-04: Log a new workout successfully
     def test_04_log_new_workout(self):
         self.driver.get(BASE_URL)
-        wait = WebDriverWait(self.driver, 10)
-
         self.driver.find_element(By.NAME, "workout_title").send_keys("Morning Run")
         Select(self.driver.find_element(By.NAME, "workout_type")).select_by_visible_text("Running")
         self.driver.find_element(By.NAME, "duration").send_keys("30")
         self.driver.find_element(By.NAME, "calories_burned").send_keys("250")
         self.driver.find_element(By.NAME, "workout_date").send_keys("2026-05-08")
         self.driver.find_element(By.NAME, "notes").send_keys("Felt great!")
-
         submit_btn = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        submit_btn.click()
-
+        self.driver.execute_script("arguments[0].click();", submit_btn)
         time.sleep(1)
         body = self.driver.find_element(By.TAG_NAME, "body").text
         self.assertIn("workout", body.lower())
@@ -68,13 +62,11 @@ class TestFitnessTrackerHomePage(unittest.TestCase):
     # TC-05: Workout form rejects missing title
     def test_05_form_missing_title(self):
         self.driver.get(BASE_URL)
-        # Leave title empty, try to submit
         self.driver.find_element(By.NAME, "duration").send_keys("30")
         self.driver.find_element(By.NAME, "calories_burned").send_keys("200")
         self.driver.find_element(By.NAME, "workout_date").send_keys("2026-05-08")
         submit_btn = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        submit_btn.click()
-        # Should stay on same page (HTML5 validation or server error)
+        self.driver.execute_script("arguments[0].click();", submit_btn)
         self.assertIn(BASE_URL, self.driver.current_url)
 
 
@@ -149,32 +141,26 @@ class TestFitnessTrackerCoachLogin(unittest.TestCase):
     def test_14_dashboard_protected(self):
         self.driver.get(BASE_URL + "/fitness_dashboard")
         time.sleep(1)
-        # Should redirect to coach_login
         self.assertIn("coach_login", self.driver.current_url)
 
     # TC-15: Logout redirects to homepage
     def test_15_logout_redirects_home(self):
-        # First login
         self.driver.get(BASE_URL + "/coach_login")
         self.driver.find_element(By.NAME, "password").send_keys("fit_guru2023")
         self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
         time.sleep(1)
-        # Now logout
         self.driver.get(BASE_URL + "/logout")
         time.sleep(1)
         self.assertEqual(self.driver.current_url.rstrip("/"), BASE_URL)
 
 
 if __name__ == "__main__":
-    # Run tests and output results
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
     suite.addTests(loader.loadTestsFromTestCase(TestFitnessTrackerHomePage))
     suite.addTests(loader.loadTestsFromTestCase(TestFitnessTrackerNavigation))
     suite.addTests(loader.loadTestsFromTestCase(TestFitnessTrackerCoachLogin))
-
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
-
     import sys
     sys.exit(0 if result.wasSuccessful() else 1)
