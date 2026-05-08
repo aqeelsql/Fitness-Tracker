@@ -3,7 +3,9 @@ pipeline {
 
     environment {
         APP_REPO = 'https://github.com/aqeelsql/Fitness-Tracker.git'
-        APP_URL  = 'http://localhost:5000'
+        APP_NAME = 'fitness-tracker-app'
+        APP_IMAGE = 'fitness-tracker-test'
+        APP_URL = 'http://localhost:5000'
     }
 
     triggers {
@@ -12,93 +14,104 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
+        // ── 1. CLONE CODE ─────────────────────────────
+        stage('Clone') {
             steps {
-                echo '📥 Pulling latest code from GitHub...'
-                git branch: 'main', url: "${APP_REPO}"
+                echo '📥 Cloning GitHub repository...'
+                git url: "${APP_REPO}", branch: 'main'
             }
         }
 
-        stage('Deploy App') {
+        // ── 2. BUILD DOCKER IMAGE ─────────────────────
+        stage('Build Docker Image') {
             steps {
-                echo '🚀 Starting the Fitness Tracker application...'
-                sh '''
-                    cd ${WORKSPACE}
-                    docker-compose down || true
-                    docker-compose up -d --build
-                    sleep 10
-                '''
+                echo '🔨 Building Docker image...'
+                sh 'docker build -t ${APP_IMAGE} .'
             }
         }
 
+        // ── 3. RUN SELENIUM TESTS (HEADLESS CHROME) ──
         stage('Test') {
             steps {
-                echo '🧪 Running Selenium test cases in Docker container...'
+                echo '🧪 Running Selenium test suite...'
                 sh '''
-                    docker build -f Dockerfile.test -t fitness-selenium-tests .
+                    mkdir -p test-results
+
                     docker run --rm \
-                        --network host \
-                        --name selenium-tests \
-                        fitness-selenium-tests \
-                        python -m pytest test_fitness_tracker.py -v \
-                            --tb=short \
-                            --junit-xml=/tests/results.xml 2>&1 | tee test_output.txt
+                        --shm-size=2g \
+                        -v $(pwd)/test-results:/tests \
+                        ${APP_IMAGE} \
+                        bash -c "
+                            echo 'Starting Flask app...'
+                            python app.py & 
+                            sleep 5
+
+                            echo 'Running tests...'
+                            pytest test_fitness_tracker.py \
+                                -v \
+                                --html=/tests/report.html \
+                                --self-contained-html
+                        "
                 '''
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true, testResults: 'results.xml'
-                    archiveArtifacts artifacts: 'test_output.txt', allowEmptyArchive: true
-                }
             }
         }
 
-        stage('Stop App') {
+        // ── 4. DEPLOY APPLICATION (KEEP RUNNING) ─────
+        stage('Deploy') {
             steps {
-                echo '🛑 Stopping app containers...'
+                echo '🚀 Deploying Fitness Tracker...'
                 sh '''
-                    cd ${WORKSPACE}
-                    docker-compose down || true
+                    docker stop ${APP_NAME} || true
+                    docker rm ${APP_NAME} || true
+
+                    docker run -d \
+                        --name ${APP_NAME} \
+                        -p 5000:5000 \
+                        ${APP_IMAGE} \
+                        flask run --host=0.0.0.0 --port=5000
+
+                    echo "Application deployed at ${APP_URL}"
                 '''
             }
         }
     }
 
+    // ── POST BUILD ACTIONS ─────────────────────────
     post {
+
+        success {
+            echo '✅ BUILD SUCCESS - Application is LIVE'
+            echo "🌐 Visit: ${APP_URL}"
+        }
+
+        failure {
+            echo '❌ BUILD FAILED - stopping container'
+            sh 'docker stop fitness-tracker-app || true'
+            sh 'docker rm fitness-tracker-app || true'
+        }
+
         always {
-            script {
-                def committerEmail = sh(
-                    script: "git log -1 --pretty=format:'%ae'",
-                    returnStdout: true
-                ).trim()
+            emailext(
+                to: 'rajaaqeeltariq@gmail.com',
+                subject: "Fitness Tracker Pipeline: ${currentBuild.currentResult} - Build #${env.BUILD_NUMBER}",
+                body: """
+                    <h2>Fitness Tracker CI/CD Results</h2>
 
-                def buildStatus = currentBuild.currentResult ?: 'UNKNOWN'
-                def subject = "Fitness Tracker Test Results: ${buildStatus} [Build #${env.BUILD_NUMBER}]"
-                def body = """
-Hello,
+                    <p><b>Status:</b> ${currentBuild.currentResult}</p>
+                    <p><b>Build:</b> #${env.BUILD_NUMBER}</p>
+                    <p><b>Job:</b> ${env.JOB_NAME}</p>
 
-Jenkins has finished running the automated Selenium test suite.
+                    <h3>App URL</h3>
+                    <p><a href="${APP_URL}">${APP_URL}</a></p>
 
-Pipeline  : ${env.JOB_NAME}
-Build #   : ${env.BUILD_NUMBER}
-Status    : ${buildStatus}
-Duration  : ${currentBuild.durationString}
+                    <h3>Jenkins Console</h3>
+                    <p><a href="${env.BUILD_URL}console">View Logs</a></p>
 
-Full logs : ${env.BUILD_URL}console
-Test Report: ${env.BUILD_URL}testReport/
-
----
-This email was sent automatically by Jenkins CI/CD pipeline.
-"""
-                emailext(
-                    subject: subject,
-                    body: body,
-                    to: committerEmail,
-                    replyTo: committerEmail,
-                    attachLog: true
-                )
-            }
+                    <p>This is an automated CI/CD pipeline email.</p>
+                """,
+                mimeType: 'text/html',
+                attachLog: true
+            )
         }
     }
-}
 }
