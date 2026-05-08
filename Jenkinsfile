@@ -1,119 +1,100 @@
 pipeline {
     agent any
- 
+
     environment {
         APP_REPO = 'https://github.com/aqeelsql/Fitness-Tracker.git'
-        APP_DIR  = '/home/ubuntu/fitness-tracker'
         APP_URL  = 'http://localhost:5000'
     }
- 
+
     triggers {
-        githubPush()   // triggered by GitHub Webhook on every push
+        githubPush()
     }
- 
+
     stages {
- 
-        // ── STAGE 1: Clone / Pull latest code ──────────────────────────
+
+        // ── 1. Checkout ───────────────────────────────
         stage('Checkout') {
             steps {
-                echo '📥 Pulling latest code from GitHub...'
+                echo '📥 Cloning repository...'
                 git branch: 'main', url: "${APP_REPO}"
             }
         }
- 
-        // ── STAGE 2: Deploy application with Docker Compose ────────────
-        stage('Deploy App') {
+
+        // ── 2. Build Docker Images ────────────────────
+        stage('Build') {
             steps {
-                echo '🚀 Starting the Fitness Tracker application...'
+                echo '🔨 Building Docker images...'
+                sh 'docker-compose build'
+            }
+        }
+
+        // ── 3. Deploy Application (KEEP RUNNING) ─────
+        stage('Deploy') {
+            steps {
+                echo '🚀 Deploying application (keeping containers running)...'
                 sh '''
-                    cd ${WORKSPACE}
                     docker-compose down || true
                     docker-compose up -d --build
-                    sleep 10   # wait for Flask app to be ready
+
+                    echo "Waiting for app to start..."
+                    sleep 15
                 '''
             }
         }
- 
-        // ── STAGE 3: Run Selenium Tests inside Docker ──────────────────
-        stage('Test') {
+
+        // ── 4. Verify Deployment ──────────────────────
+        stage('Verify Deployment') {
             steps {
-                echo '🧪 Running Selenium test cases in Docker container...'
+                echo '🔍 Checking if website is accessible...'
                 sh '''
-                    # Build the test Docker image
-                    docker build -f Dockerfile.test -t fitness-selenium-tests .
- 
-                    # Run tests; container shares host network so it can reach localhost:5000
+                    for i in {1..10}; do
+                        curl -s --fail ${APP_URL} && echo "App is UP" && exit 0
+                        echo "Waiting for app..."
+                        sleep 5
+                    done
+
+                    echo "App failed to start"
+                    exit 1
+                '''
+            }
+        }
+
+        // ── 5. Selenium Tests (Headless Chrome) ───────
+        stage('Selenium Tests') {
+            steps {
+                echo '🧪 Running Selenium tests...'
+                sh '''
+                    docker build -f Dockerfile.test -t fitness-tests .
+
                     docker run --rm \
                         --network host \
                         -e BASE_URL=${APP_URL} \
-                        --name selenium-tests \
-                        fitness-selenium-tests \
-                        python -m pytest test_fitness_tracker.py -v \
-                            --tb=short \
-                            --junit-xml=/tests/results.xml 2>&1 | tee test_output.txt
- 
-                    # Copy results out of the container for archiving
-                    docker cp selenium-tests:/tests/results.xml . 2>/dev/null || true
+                        fitness-tests \
+                        pytest -v test_fitness_tracker.py \
+                        --junitxml=/tests/results.xml
                 '''
             }
+
             post {
                 always {
-                    // Archive JUnit XML so Jenkins shows pass/fail per test
-                    junit allowEmptyResults: true, testResults: 'results.xml'
-                    // Archive raw log
-                    archiveArtifacts artifacts: 'test_output.txt', allowEmptyArchive: true
+                    junit 'results.xml'
+                    archiveArtifacts artifacts: 'results.xml', allowEmptyArchive: true
                 }
             }
         }
- 
-        // ── STAGE 4: Stop app (keep deployment down after test) ────────
-        stage('Stop App') {
-            steps {
-                echo '🛑 Stopping app containers (deployment stays down per assignment)...'
-                sh '''
-                    cd ${WORKSPACE}
-                    docker-compose down || true
-                '''
-            }
-        }
     }
- 
-    // ── POST: Email test results to the committer ──────────────────────
+
+    // ── POST BUILD ACTIONS ─────────────────────────────
     post {
-        always {
-            script {
-                def committerEmail = sh(
-                    script: "git log -1 --pretty=format:'%ae'",
-                    returnStdout: true
-                ).trim()
- 
-                def buildStatus = currentBuild.currentResult ?: 'UNKNOWN'
-                def subject     = "Fitness Tracker Test Results: ${buildStatus} [Build #${env.BUILD_NUMBER}]"
- 
-                def body = """
-Hello,
- 
-Jenkins has finished running the automated Selenium test suite for the Fitness Tracker app.
- 
-Pipeline  : ${env.JOB_NAME}
-Build #   : ${env.BUILD_NUMBER}
-Status    : ${buildStatus}
-Duration  : ${currentBuild.durationString}
- 
-Full logs : ${env.BUILD_URL}console
-Test Report: ${env.BUILD_URL}testReport/
- 
----
-This email was sent automatically by the Jenkins CI/CD pipeline.
-"""
-                emailext(
-                    subject: subject,
-                    body: body,
-                    to: committerEmail,
-                    replyTo: committerEmail,
-                    attachLog: true
-                )
-            }
+
+        success {
+            echo '✅ Pipeline SUCCESS - Application is LIVE and RUNNING'
+            echo "🌐 Visit: ${APP_URL}"
+        }
+
+        failure {
+            echo '❌ Pipeline FAILED - stopping containers'
+            sh 'docker-compose down || true'
         }
     }
 }
