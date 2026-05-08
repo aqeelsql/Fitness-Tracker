@@ -1,105 +1,117 @@
 pipeline {
     agent any
 
+    environment {
+        APP_REPO = 'https://github.com/aqeelsql/Fitness-Tracker.git'
+        APP_DIR  = '/home/ubuntu/fitness-tracker'
+        // Use the public IP of your EC2 instance as the APP_URL
+        APP_URL  = "http://${env.PUBLIC_IP}:5000"  // Dynamically set the public IP
+    }
+
     triggers {
-        githubPush()
+        githubPush()   // Triggered by GitHub Webhook on every push
     }
 
     stages {
-        stage('Clone') {
+
+        // ── STAGE 1: Clone / Pull latest code ──────────────────────────
+        stage('Checkout') {
             steps {
-                echo '📥 Cloning GitHub repository...'
-                git url: 'https://github.com/aqeelsql/Fitness-Tracker.git', branch: 'main'
+                echo '📥 Pulling latest code from GitHub...'
+                git branch: 'main', url: "${APP_REPO}"
             }
         }
 
-        stage('Build Docker Image') {
+        // ── STAGE 2: Deploy application with Docker Compose ────────────
+        stage('Deploy App') {
             steps {
-                echo '🔨 Building Docker image...'
-                sh 'docker build -f Dockerfile.test -t fitness-tracker-test .'
-            }
-        }
-
-        stage('Test') {
-            steps {
-                echo '🧪 Running tests...'
+                echo '🚀 Starting the Fitness Tracker application...'
                 sh '''
-                    mkdir -p test-results
-                    docker run --rm \
-                        --shm-size=2g \
-                        -v $(pwd)/test-results:/app/test-results \
-                        fitness-tracker-test \
-                        bash -c "
-                            python application.py &
-                            sleep 3
-                            pytest test_fitness_tracker.py \
-                                --html=test-results/report.html \
-                                --self-contained-html \
-                                -v
-                        "
+                    cd ${WORKSPACE}
+                    docker-compose down || true
+                    docker-compose up -d --build
+                    sleep 10   # wait for Flask app to be ready
                 '''
             }
         }
 
-        stage('Deploy') {
+        // ── STAGE 3: Run Selenium Tests inside Docker ──────────────────
+        stage('Test') {
             steps {
-                echo '🚀 Deploying application...'
+                echo '🧪 Running Selenium test cases in Docker container...'
                 sh '''
-                    # Stop and remove old container
-                    docker stop fitness-tracker-app || true
-                    docker rm fitness-tracker-app || true
+                    # Build the test Docker image
+                    docker build -f Dockerfile.test -t fitness-selenium-tests .
 
-                    # Run with explicit host binding — critical for EC2
-                    docker run -d \
-                        --name fitness-tracker-app \
-                        --restart unless-stopped \
-                        -p 0.0.0.0:5000:5000 \
-                        -e FLASK_APP=application.py \
-                        -e FLASK_RUN_HOST=0.0.0.0 \
-                        fitness-tracker-test \
-                        flask run --host=0.0.0.0 --port=5000
+                    # Run tests; container shares host network so it can reach localhost:5000
+                    docker run --rm \
+                        --network host \
+                        -e BASE_URL=${APP_URL} \
+                        --name selenium-tests \
+                        fitness-selenium-tests \
+                        python -m pytest test_fitness_tracker.py -v \
+                            --tb=short \
+                            --junit-xml=/tests/results.xml 2>&1 | tee test_output.txt
 
-                    # Wait for container to start
-                    sleep 5
+                    # Copy results out of the container for archiving
+                    docker cp selenium-tests:/tests/results.xml . 2>/dev/null || true
+                '''
+            }
+            post {
+                always {
+                    // Archive JUnit XML so Jenkins shows pass/fail per test
+                    junit allowEmptyResults: true, testResults: 'results.xml'
+                    // Archive raw log
+                    archiveArtifacts artifacts: 'test_output.txt', allowEmptyArchive: true
+                }
+            }
+        }
 
-                    # Verify container is actually running
-                    if docker ps | grep -q fitness-tracker-app; then
-                        EC2_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
-                        echo "✅ App deployed successfully!"
-                        echo "🌐 Visit: http://$EC2_IP:5000"
-                    else
-                        echo "❌ Container failed to start!"
-                        docker logs fitness-tracker-app
-                        exit 1
-                    fi
+        // ── STAGE 4: Stop app (keep deployment down after test) ────────
+        stage('Stop App') {
+            steps {
+                echo '🛑 Stopping app containers (deployment stays down per assignment)...'
+                sh '''
+                    cd ${WORKSPACE}
+                    docker-compose down || true
                 '''
             }
         }
     }
 
+    // ── POST: Email test results to the committer ──────────────────────
     post {
         always {
             script {
-                def ec2Ip = sh(
-                    script: 'curl -s http://169.254.169.254/latest/meta-data/public-ipv4',
+                def committerEmail = sh(
+                    script: "git log -1 --pretty=format:'%ae'",
                     returnStdout: true
                 ).trim()
 
+                def buildStatus = currentBuild.currentResult ?: 'UNKNOWN'
+                def subject     = "Fitness Tracker Test Results: ${buildStatus} [Build #${env.BUILD_NUMBER}]"
+
+                def body = """
+Hello,
+
+Jenkins has finished running the automated Selenium test suite for the Fitness Tracker app.
+
+Pipeline  : ${env.JOB_NAME}
+Build #   : ${env.BUILD_NUMBER}
+Status    : ${buildStatus}
+Duration  : ${currentBuild.durationString}
+
+Full logs : ${env.BUILD_URL}console
+Test Report: ${env.BUILD_URL}testReport/
+
+---
+This email was sent automatically by the Jenkins CI/CD pipeline.
+"""
                 emailext(
-                    to: 'rajaaqeeltariq@gmail.com',
-                    subject: "Fitness Tracker: ${currentBuild.currentResult} - Build #${env.BUILD_NUMBER}",
-                    body: """
-                        <h2>Build Result: ${currentBuild.currentResult}</h2>
-                        <p><b>Job:</b> ${env.JOB_NAME}</p>
-                        <p><b>Build:</b> #${env.BUILD_NUMBER}</p>
-                        <p><b>App URL:</b> <a href="http://${ec2Ip}:5000">http://${ec2Ip}:5000</a></p>
-                        <p><b>Console:</b> <a href="${env.BUILD_URL}console">View Console Output</a></p>
-                    """,
-                    mimeType: 'text/html',
-                    recipientProviders: [
-                        [$class: 'DevelopersRecipientProvider'],
-                        [$class: 'RequesterRecipientProvider']
-                    ],
+                    subject: subject,
+                    body: body,
+                    to: committerEmail,
+                    replyTo: committerEmail,
                     attachLog: true
                 )
             }
